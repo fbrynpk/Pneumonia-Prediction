@@ -4,12 +4,14 @@ Trains a PyTorch image classification model for covid detection using device-agn
 
 import os
 import torch
+import torchvision
+
+from torch import nn
 from torchvision import transforms
 from timeit import default_timer as timer
-import data_setup, engine, model_builder, utils
+import data_setup, engine, model_builder, utils, feature_extractor, helper_functions
 
 # Setup Hyperparameters
-NUM_EPOCHS = 5
 BATCH_SIZE = 32
 HIDDEN_UNITS = 10
 LEARNING_RATE = 1e-3
@@ -26,7 +28,6 @@ elif torch.backends.mps.is_available():
 else:
     device = "cpu"
 
-# Create transforms
 # Write a transform for image
 data_transform = transforms.Compose(
     [
@@ -50,32 +51,104 @@ train_dataloader, test_dataloader, class_names = data_setup.create_dataloaders(
     batch_size=BATCH_SIZE,
 )
 
-# Create Model
-model = model_builder.TinyVGG(
-    input=3, hidden_units=HIDDEN_UNITS, output=len(class_names)
-).to(device)
+# Set the pretrained weights of Efficient Net B0
+pretrained_weights = torchvision.models.EfficientNet_B0_Weights.DEFAULT
 
-# Setup Loss Function and Optimizer
-loss_fn = torch.nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(params=model.parameters(), lr=LEARNING_RATE)
+# Make sure to transform the data exactly how the model was previously trained on
+auto_transform = pretrained_weights.transforms()
+
+# Create DataLoader's and get class_names
+(
+    train_dataloader_auto,
+    test_dataloader_auto,
+    class_names,
+) = data_setup.create_dataloaders(
+    train_dir=train_dir,
+    test_dir=test_dir,
+    transform=auto_transform,
+    batch_size=BATCH_SIZE,
+)
 
 # Start the timer
 start_time = timer()
 
-# Start the training with help from engine.py
-engine.train(
-    model=model,
-    train_dataloader=train_dataloader,
-    test_dataloader=test_dataloader,
-    optimizer=optimizer,
-    loss_fn=loss_fn,
-    epochs=NUM_EPOCHS,
-    device=device,
-)
+# Set seeds
+helper_functions.set_seeds(seed=42)
+
+# Keep track of experiment numberes
+exp_number = 0
+
+# Set Number of Epochs
+NUM_EPOCHS = [5, 10]
+
+# Create Models list (need to create a new model for each experiment)
+models = ["TinyVGG", "EffNetB0"]
+
+# Create DataLoaders Dictionary
+train_dataloaders = {
+    "data_auto": train_dataloader_auto,
+    "data_manual": train_dataloader,
+}
+
+test_dataloaders = {
+    "data_test_auto": test_dataloader_auto,
+    "data_test_manual": test_dataloader,
+}
+
+
+# Loop through the epochs
+for epochs in NUM_EPOCHS:
+    # Loop through each name and create a new model instance
+    for model_name in models:
+        # Print out info
+        exp_number += 1
+        print(f"[INFO] Experiment Number: {exp_number}")
+        print(f"[INFO] Model: {model_name}")
+        print(f"[INFO] Number of Epochs: {epochs}")
+        # Select and create the model
+        if model_name == "EffNetB0":
+            train_dataloader = train_dataloaders["data_auto"]
+            test_dataloader = test_dataloaders["data_test_auto"]
+            dataloader_name = list(train_dataloaders.keys())[
+                list(train_dataloaders.values()).index(train_dataloader)
+            ]
+            print(f"[INFO] DataLoader: {dataloader_name}")
+            model = feature_extractor.create_effnet(
+                pretrained_weights=pretrained_weights,
+                model=torchvision.models.efficientnet_b0,
+                in_features=1280,
+                dropout=0.2,
+                out_features=len(class_names),
+            )
+        else:
+            train_dataloader = train_dataloaders["data_manual"]
+            test_dataloader = test_dataloaders["data_test_manual"]
+            dataloader_name = list(train_dataloaders.keys())[
+                list(train_dataloaders.values()).index(train_dataloader)
+            ]
+            print(f"[INFO] DataLoader: {dataloader_name}")
+            # Create TinyVGG Model
+            model = model_builder.TinyVGG(
+                input=3, hidden_units=HIDDEN_UNITS, output=len(class_names)
+            ).to(device)
+        # Create a new loss and optimizer for every model
+        loss_fn = nn.CrossEntropyLoss()
+        optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+        # Train target model with target dataloader and track experiments
+        engine.train(
+            model=model,
+            train_dataloader=train_dataloader,
+            test_dataloader=test_dataloader,
+            optimizer=optimizer,
+            loss_fn=loss_fn,
+            epochs=epochs,
+            device=device,
+        )
+        # Save model to a file so we can import it later if need be
+        save_filepath = f"{model_name}_{dataloader_name}_{epochs}_epochs.pth"
+        utils.save_model(model=model, target_dir="models", model_name=save_filepath)
+        print("-" * 50 + "\n")
 
 # End the timer and print out how long it took
 end_time = timer()
 print(f"[INFO]Total Training Time: {end_time - start_time:.3f} seconds")
-
-# Save the model
-utils.save_model(model=model, target_dir="models", model_name="TinyVGGV1.pth")
