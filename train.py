@@ -9,12 +9,20 @@ import torchvision
 from torch import nn
 from torchvision import transforms
 from timeit import default_timer as timer
-import data_setup, engine, model_builder, utils, feature_extractor, helper_functions
+from functions import (
+    data_setup,
+    engine,
+    model_builder,
+    utils,
+    model_builder_effnet,
+    helper_functions,
+)
 
 # Setup Hyperparameters
 BATCH_SIZE = 32
 HIDDEN_UNITS = 10
 LEARNING_RATE = 1e-3
+PYTORCH_ENABLE_MPS_FALLBACK = 1
 
 # Setup directories
 train_dir = "data/xray_dataset_covid19/train"
@@ -29,7 +37,23 @@ else:
     device = "cpu"
 
 # Write a transform for image
-data_transform = transforms.Compose(
+vgg_train_transform = transforms.Compose(
+    [
+        # Resize our images to 64x64
+        transforms.Resize(size=(64, 64)),
+        # Flip the images randomly on the horizontal
+        transforms.RandomHorizontalFlip(p=0.5),
+        # Turns image into grayscale
+        transforms.Grayscale(num_output_channels=3),
+        # Trivial Augment
+        transforms.TrivialAugmentWide(num_magnitude_bins=10),
+        # Turn the image into a torch.Tensor
+        transforms.ToTensor()
+        # Permute the channel height and width
+    ]
+)
+
+vgg_test_transform = transforms.Compose(
     [
         # Resize our images to 64x64
         transforms.Resize(size=(64, 64)),
@@ -47,7 +71,8 @@ data_transform = transforms.Compose(
 train_dataloader, test_dataloader, class_names = data_setup.create_dataloaders(
     train_dir=train_dir,
     test_dir=test_dir,
-    transform=data_transform,
+    train_transform=vgg_train_transform,
+    test_transform=vgg_test_transform,
     batch_size=BATCH_SIZE,
 )
 
@@ -55,7 +80,14 @@ train_dataloader, test_dataloader, class_names = data_setup.create_dataloaders(
 pretrained_weights = torchvision.models.EfficientNet_B0_Weights.DEFAULT
 
 # Make sure to transform the data exactly how the model was previously trained on
-auto_transform = pretrained_weights.transforms()
+auto_test_transform = pretrained_weights.transforms()
+
+auto_train_transform = transforms.Compose(
+    [
+        transforms.TrivialAugmentWide(num_magnitude_bins=10),
+        auto_test_transform,
+    ]
+)
 
 # Create DataLoader's and get class_names
 (
@@ -65,7 +97,8 @@ auto_transform = pretrained_weights.transforms()
 ) = data_setup.create_dataloaders(
     train_dir=train_dir,
     test_dir=test_dir,
-    transform=auto_transform,
+    train_transform=auto_train_transform,
+    test_transform=auto_test_transform,
     batch_size=BATCH_SIZE,
 )
 
@@ -82,7 +115,7 @@ exp_number = 0
 NUM_EPOCHS = [5, 10]
 
 # Create Models list (need to create a new model for each experiment)
-models = ["TinyVGG", "EffNetB0"]
+models = ["EffNetB0", "TinyVGG"]
 
 # Create DataLoaders Dictionary
 train_dataloaders = {
@@ -113,7 +146,7 @@ for epochs in NUM_EPOCHS:
                 list(train_dataloaders.values()).index(train_dataloader)
             ]
             print(f"[INFO] DataLoader: {dataloader_name}")
-            model = feature_extractor.create_effnet(
+            model, transforms = model_builder_effnet.create_effnet(
                 pretrained_weights=pretrained_weights,
                 model=torchvision.models.efficientnet_b0,
                 in_features=1280,
@@ -132,8 +165,8 @@ for epochs in NUM_EPOCHS:
                 input=3, hidden_units=HIDDEN_UNITS, output=len(class_names)
             ).to(device)
         # Create a new loss and optimizer for every model
-        loss_fn = nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+        loss_fn = nn.CrossEntropyLoss(label_smoothing=0.1)
+        optimizer = torch.optim.Adam(params=model.parameters(), lr=LEARNING_RATE)
         # Train target model with target dataloader and track experiments
         engine.train(
             model=model,
