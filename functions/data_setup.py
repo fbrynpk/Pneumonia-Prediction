@@ -10,7 +10,11 @@ from torch.utils.data import DataLoader
 
 
 def create_dataloaders(
-    train_dir: str, test_dir: str, transform: transforms.Compose, batch_size: int
+    train_dir: str,
+    test_dir: str,
+    train_transform: transforms.Compose,
+    test_transform: transforms.Compose,
+    batch_size: int,
 ):
     """Creates training and testing DataLoaders.
 
@@ -36,8 +40,8 @@ def create_dataloaders(
     """
 
     # Use ImageFolder to create Datasets
-    train_data = datasets.ImageFolder(train_dir, transform=transform)
-    test_data = datasets.ImageFolder(test_dir, transform=transform)
+    train_data = datasets.ImageFolder(train_dir, transform=train_transform)
+    test_data = datasets.ImageFolder(test_dir, transform=test_transform)
 
     train_dataloader = DataLoader(
         dataset=train_data,

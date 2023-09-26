@@ -2,8 +2,8 @@
 
 import torch
 import torchvision
-import helper_functions
 
+from functions import helper_functions
 from torch import nn
 
 # Setup device agnostic code
@@ -25,6 +25,7 @@ def create_effnet(
 ):
     # Get the weights and setup the model
     model = model(weights=pretrained_weights).to(device)
+    transforms = pretrained_weights.transforms()
 
     # Freeze the base model layers
     for param in model.features.parameters():
@@ -37,4 +38,4 @@ def create_effnet(
         nn.Linear(in_features=in_features, out_features=out_features),
     ).to(device)
 
-    return model
+    return model, transforms
