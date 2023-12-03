@@ -4,6 +4,8 @@ Trying to classify from X-Ray images whether it's classified as COVID-19 or Norm
 
 Architecture can be found from: "https://poloclub.github.io/cnn-explainer/"
 
+# [Try the model here!](https://huggingface.co/spaces/fbrynpk/Covid-19-Detection)
+
 # Training Results
 ### 5 Epochs 
 
