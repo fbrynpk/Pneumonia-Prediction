@@ -9,8 +9,8 @@ Architecture can be found from: "https://poloclub.github.io/cnn-explainer/"
 # Training Results
 ### 5 Epochs 
 
-TinyVGG: Train Loss = 0.6877 | Train Acc = 0.60% | Test Loss = 0.6805 | Test Acc = 0.97% <br/>
-EffNetB0: Train Loss = 0.2432 | Train Acc = 0.97% | Test Loss = 0.3150 | Test Acc = 0.92%
+TinyVGG: Train Loss = 0.6877 | Train Acc = 97% | Test Loss = 0.6805 | Test Acc = 60% <br/>
+EffNetB0: Train Loss = 0.2432 | Train Acc = 97% | Test Loss = 0.3150 | Test Acc = 92%
 ________________
 ### 10 Epochs
 
@@ -24,8 +24,8 @@ Best performing model: **EffNetB0 with 10 Epochs**
 
 ### 5 Epochs
 
-TinyVGG: Train Loss = 0.6877 | Train Acc = 0.61% | Test Loss = 0.68256 | Test Acc = 0.88%<br/>
-EffNetB0: Train Loss = 0.3893 | Train Acc = 0.91% | Test Loss = 0.35206 | Test Acc = 0.95%
+TinyVGG: Train Loss = 0.6877 | Train Acc = 88% | Test Loss = 0.68256 | Test Acc = 61%<br/>
+EffNetB0: Train Loss = 0.3893 | Train Acc = 95% | Test Loss = 0.35206 | Test Acc = 91%
 
 ________________
 ### 10 Epochs
